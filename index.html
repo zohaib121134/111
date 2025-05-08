@@ -1,0 +1,183 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Marks Entry Form</title>
+  <style>
+    body { font-family: Arial, sans-serif; margin: 20px; }
+    table { width: 100%; border-collapse: collapse; margin-top: 20px; }
+    th, td { border: 1px solid #ccc; padding: 8px; text-align: center; }
+    th { background-color: #f2f2f2; }
+    .hidden { display: none; }
+    input { width: 60px; text-align: center; }
+  </style>
+</head>
+<body>
+
+<h2>The Guardian International School System - Hassan Campus</h2>
+<label for="classSelect"><strong>Select Class:</strong></label>
+<select id="classSelect">
+  <option value="">-- Select Class --</option>
+</select>
+
+<div id="formContainer" class="hidden">
+  <form id="marksForm">
+    <table id="studentTable">
+      <thead>
+        <tr>
+          <th>Roll No</th>
+          <th>Name</th>
+          <!-- Subject headers will go here dynamically -->
+        </tr>
+      </thead>
+      <tbody>
+        <!-- Student rows will be inserted here -->
+      </tbody>
+    </table>
+    <br>
+    <button type="submit">Submit Marks</button>
+  </form>
+</div>
+
+<script>
+  const API_URL = "https://script.google.com/macros/s/AKfycbz_0QhRG6d8UFDsTju1a95qKv9JTeJsWxfJ7clYTb0bVenoJ1pBk11V9IhwF6j-GE6MTg/exec";
+  
+  const classSelect = document.getElementById("classSelect");
+  const formContainer = document.getElementById("formContainer");
+  const studentTable = document.getElementById("studentTable").querySelector("tbody");
+
+  const classSubjects = {
+    "J": ["English", "Science", "Maths", "Computer", "Urdu", "Islamiyat"],
+    "U": ["English", "Science", "Maths", "Computer", "SST", "Urdu", "Islamiyat"],
+    "M": ["English (R)", "English (W)", "Urdu (R)", "Urdu (W)", "G.K", "Islamiyat"],
+    "S": ["English", "Urdu", "Maths", "Islamiyat", "Pak Studies", "Physics/Gen. Science", 
+          "Chemistry/Education", "Computer/Bio/Civics/Isl-elective"]
+  };
+
+  let allStudents = [];
+
+  // Load student data
+  fetch(API_URL)
+    .then(res => {
+      console.log('Fetch response status:', res.status); // Debug
+      if (!res.ok) throw new Error(`Network response was not ok: ${res.status}`);
+      return res.json();
+    })
+    .then(data => {
+      console.log('Received data:', data); // Debug
+      allStudents = data;
+      const uniqueClasses = [...new Set(data.map(s => s.Class))].sort();
+      console.log('Unique classes:', uniqueClasses); // Debug
+      uniqueClasses.forEach(cls => {
+        const opt = document.createElement("option");
+        opt.value = cls;
+        opt.textContent = cls;
+        classSelect.appendChild(opt);
+      });
+    })
+    .catch(err => {
+      console.error('Error loading student data:', err);
+      alert('Error loading student data. Please check the console and try again.');
+    });
+
+  // Handle class selection
+  classSelect.addEventListener("change", () => {
+    const selectedClass = classSelect.value;
+    console.log('Selected class:', selectedClass); // Debug
+    if (!selectedClass) {
+      formContainer.classList.add("hidden");
+      return;
+    }
+
+    const students = allStudents.filter(s => s.Class === selectedClass);
+    console.log('Filtered students:', students); // Debug
+    if (students.length === 0) return;
+
+    const classCode = students[0]["class code"];
+    console.log('Class code:', classCode); // Debug
+    const subjects = classSubjects[classCode] || [];
+    console.log('Subjects:', subjects); // Debug
+
+    // Update table headers
+    const headerRow = document.querySelector("#studentTable thead tr");
+    while (headerRow.children.length > 2) {
+      headerRow.removeChild(headerRow.lastChild);
+    }
+    subjects.forEach(sub => {
+      const th = document.createElement("th");
+      th.textContent = sub;
+      headerRow.appendChild(th);
+    });
+
+    // Populate student rows
+    studentTable.innerHTML = "";
+    students.forEach(student => {
+      const row = document.createElement("tr");
+
+      // Roll No
+      const rollCell = document.createElement("td");
+      rollCell.textContent = student["Roll No"];
+      row.appendChild(rollCell);
+
+      // Name
+      const nameCell = document.createElement("td");
+      nameCell.textContent = student.Name;
+      row.appendChild(nameCell);
+
+      // Subject inputs
+      subjects.forEach(sub => {
+        const cell = document.createElement("td");
+        cell.innerHTML = `
+          <input type="number" placeholder="Obtained" name="obt_${student["Roll No"]}_${sub}" min="0">
+          / 
+          <input type="number" placeholder="Total" name="total_${student["Roll No"]}_${sub}" min="0">
+        `;
+        row.appendChild(cell);
+      });
+
+      studentTable.appendChild(row);
+    });
+
+    formContainer.classList.remove("hidden");
+  });
+
+  // Handle form submission
+  document.getElementById("marksForm").addEventListener("submit", function(e) {
+    e.preventDefault();
+    
+    const formData = new FormData(this);
+    const entries = {};
+    
+    for (let [key, value] of formData.entries()) {
+      if (value.trim() !== "") {
+        entries[key] = value;
+      }
+    }
+    console.log('Form data to submit:', entries); // Debug
+
+    fetch(API_URL, {
+      method: "POST",
+      body: JSON.stringify(entries),
+      headers: {
+        "Content-Type": "application/json"
+      }
+    })
+    .then(res => {
+      console.log('POST response status:', res.status); // Debug
+      return res.json();
+    })
+    .then(data => {
+      console.log('POST response:', data); // Debug
+      if (data.error) throw new Error(data.error);
+      alert("Marks submitted successfully!");
+    })
+    .catch(err => {
+      console.error('Error submitting marks:', err);
+      alert("Error submitting marks. Please check the console and try again.");
+    });
+  });
+</script>
+
+</body>
+</html>
